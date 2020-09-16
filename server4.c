@@ -6,15 +6,16 @@
 #include<arpa/inet.h>
 #include<sys/socket.h>
 
-#define PORTA 1788 //VARIABILI CONDIVISE//
+//ESERCIZIO CHE INVECE DI MANDARE STRINGHE MANDA INTERO E SOMMA 5 A TALE VALORE //
+#define PORTA 1789 //VARIABILI CONDIVISE//
 void*funzione(void *arg);
 
 struct mess{
 int id;
 char nome[50];
-char messaggio[50];
+int valore;
 };
-//VARIABILI CONDIVISE//
+
 pthread_mutex_t mutex;
 struct mess messaggio;
 
@@ -77,14 +78,15 @@ if(strncmp(buff,"send",4)==0){
 pthread_mutex_lock(&mutex);
 messaggio.id++;
 strcpy(messaggio.nome,nome);
-strcpy(messaggio.messaggio,&buff[5]);
+int n=atoi(&buff[5]);
+messaggio.valore=n+5;
 pthread_mutex_unlock(&mutex);
 sprintf(buff,"ok");
 write(sock,buff,strlen(buff)+1);
 }
 if(strncmp(buff,"read",4)==0){
 pthread_mutex_lock(&mutex);
-sprintf(buff,"%d %s %s\n",messaggio.id,messaggio.nome,messaggio.messaggio);
+sprintf(buff,"%d %s %d\n",messaggio.id,messaggio.nome,messaggio.valore);
 pthread_mutex_unlock(&mutex);
 write(sock,buff,strlen(buff)+1);
 }
@@ -93,5 +95,5 @@ break;
 }
 }
 close(sock);
-pthread_exit(0);
+exit(0);
 }

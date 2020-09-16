@@ -1,89 +1,91 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
+#include <wait.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/shm.h>
 #include <sys/sem.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <string.h>
+#include <sys/shm.h>
 
+void processo_figlio(int semid,char *shm);
 int sem_set(int semid,int valore);
 int sem_down(int semid);
 int sem_up(int semid);
-void processo_figlio(int semid,int *shm);
-#define SIZE 50
+
 int main(void){
+int i=0;
 int semid;
 int shmid;
-int i;
-int a[5];
-int c[5];
-int *shm;
+char *shm;
+char stringa[50];
 pid_t pid;
-//CREO IL SEMAFORO//
 semid=semget((key_t)1234,1,0666|IPC_CREAT);
 if(semid==-1){
-perror("CREAZIONE NON RIUSCITA\n");
+perror("CREAZIONE SEMAFORO NON RIUSCITA\n");
 exit(1);
 }
 sem_set(semid,1);
-//CREO LA MEMORIA CONDIVISA//
-shmid=shmget((key_t)1235,SIZE,0666|IPC_CREAT);
+shmid=shmget((key_t)1235,50,0666|IPC_CREAT);
 if(shmid==-1){
-perror("Creazione non riuscita\n");
+perror("CREAZIONE SHARED MEMORY NON RIUSCITA\n");
 exit(1);
 }
-//FACCIO L'ATTACK//
-shm=(int*)shmat(shmid,NULL,0);
-//CREO I FIGLIO//
+shm=(char*)shmat(shmid,NULL,0);
+//CREO I FIGLI//
 pid=fork();
 switch(pid){
 case -1:
-perror("CREAZIONE NON RIUSCITA\n");
+perror("CREAZIONE FIGLIO NON RIUSCITA\n");
 exit(1);
 case 0:
 processo_figlio(semid,shm);
 exit(0);
 default:
 break;
-
 }
-//CODICE PADRE//
-for(i=0;i<5;i++){
+//CODICE DEL PROCESSO PADRE//
+do{
 sem_down(semid);
-printf("Inserisci un numero\n");
-scanf("%d",&a[i]);
-printf("Inserisci un numero\n");
-scanf("%d",&c[i]);
-*shm=a[i]+c[i];
+if(strncmp(stringa,"ESCI",4)==0){
 sem_up(semid);
+break;
 }
+if(i!=0){
+printf("LA STRINGA MODIFICATA:%s\n",shm);
+}
+printf("Inserisci una stringa\n");
+fgets(stringa,50,stdin);
+strcpy(shm,stringa);
+i++;
+sem_up(semid);
+}while(1);
 wait(NULL);
-//ELIMINO IL SEMAFORO FACCIO LA DETACH ELIMINO LA SHM//
-semctl(semid, 0, IPC_RMID);
+semctl(semid,0,IPC_RMID);
 shmdt(shm);
 shmctl(shmid,IPC_RMID,NULL);
 printf("TUTTO E ANDATO CORRETTAMENTE\n");
-exit(0);
 }
-
-void processo_figlio(int semid,int *shm){
-int i;
-for(i=0;i<5;i++){
+void processo_figlio(int semid,char *shm){
+int c=0;
+int i=0;
+do{
 sem_down(semid);
-if(*shm %2==0){
-printf("IL NUMERO E PARI:%d\n",*shm);
-}
-else{
-printf("IL NUMERO E DISPARI:%d\n",*shm);
-}
+if(strncmp(shm,"ESCI",4)==0){
 sem_up(semid);
+break;
 }
-exit(0);
+c=strlen(shm)-1;
+i++;
+printf("HO LETTO LA SEGUENTE STRINGA:%s\n",shm);
+printf("ESSA E LUNGA:%d\n",c);
+strcat(shm,"PORCO");
+sem_up(semid);
 
+}while(1);
+exit(0);
 }
- union semun {
+  union semun {
                int              val;    /* Value for SETVAL */
                struct semid_ds *buf;    /* Buffer for IPC_STAT, IPC_SET */
                unsigned short  *array;  /* Array for GETALL, SETALL */
@@ -92,21 +94,21 @@ exit(0);
            };
 
 int sem_set(int semid,int valore){
-union semun a;
-a.val=valore;
-return semctl(semid,0,SETVAL,a);
-}
-int sem_down(int semid){
-struct sembuf op;
-op.sem_num=0;
-op.sem_op=-1;
-op.sem_flg=SEM_UNDO;
-return semop(semid,&op,1);
+union semun pippo;
+pippo.val=valore;
+return semctl(semid,0,SETVAL,pippo);
 }
 int sem_up(int semid){
 struct sembuf op;
 op.sem_num=0;
 op.sem_op=+1;
+op.sem_flg=SEM_UNDO;
+return semop(semid,&op,1);
+}
+int sem_down(int semid){
+struct sembuf op;
+op.sem_num=0;
+op.sem_op=-1;
 op.sem_flg=SEM_UNDO;
 return semop(semid,&op,1);
 }
